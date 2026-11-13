@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🎬 Video → Reels</title>
 <style>
+  /* ... (CSS sama seperti sebelumnya, tidak diubah) ... */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #eaeaea; min-height: 100vh; line-height: 1.5; }
   header { text-align: center; padding: 48px 20px 24px; border-bottom: 1px solid #1a1a1a; }
@@ -84,6 +85,7 @@ let ffmpeg = null;
 let currentVideoFile = null;
 
 const $ = (id) => document.getElementById(id);
+// ... (deklarasi DOM lainnya) ...
 const videoInput = $('videoInput');
 const clipCount = $('clipCount');
 const startBtn = $('startBtn');
@@ -109,19 +111,42 @@ videoInput.addEventListener('change', (e) => {
   }
 });
 
+// ============ PERBAIKAN FINAL: classWorkerURL DENGAN ORIGIN ABSOLUT ============
 async function loadFFmpeg() {
-  if (ffmpeg) return ffmpeg;
+  if (ffmpeg && ffmpeg.isLoaded()) return ffmpeg;
+
   ffmpeg = new FFmpeg();
   ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
-  setProgress(2, 'Memuat FFmpeg…', 'Mengunduh ~30 MB WASM');
-  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
-  await ffmpeg.load({
-    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
+  ffmpeg.on('error', (err) => console.error('[ffmpeg-error]', err));
+
+  setProgress(2, 'Memuat FFmpeg…', 'Menyiapkan mesin dari file lokal');
+
+  const basePath = '/ffmpeg'; // Path absolut dari root situs
+  const origin = window.location.origin;
+
+  try {
+    const coreURL = await toBlobURL(`${origin}${basePath}/ffmpeg-core.js`, 'text/javascript');
+    const wasmURL = await toBlobURL(`${origin}${basePath}/ffmpeg-core.wasm`, 'application/wasm');
+    
+    // KUNCI PERBAIKAN: Gunakan location.origin + path absolut
+    const classWorkerURL = `${origin}${basePath}/worker.js`;
+
+    await ffmpeg.load({
+      coreURL: coreURL,
+      wasmURL: wasmURL,
+      classWorkerURL: classWorkerURL,
+    });
+    console.log('[ffmpeg] Loaded successfully');
+  } catch (err) {
+    console.error('Gagal memuat FFmpeg:', err);
+    throw new Error('Gagal memuat mesin FFmpeg. Periksa folder "ffmpeg" dan file di dalamnya.');
+  }
+
   return ffmpeg;
 }
+// =========================================================================
 
+// ... (Fungsi buildAss, transcribeAudio, findHighlights SAMA seperti sebelumnya) ...
 const ASS_HEADER = `[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -136,10 +161,8 @@ Style: Default,Arial,88,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
-
 function assTime(s) { if (s < 0) s = 0; const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); const sec = Math.floor(s%60); const cs = Math.round((s-Math.floor(s))*100); return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
 function escapeAss(t) { return t.replace(/\\/g,'\\\\').replace(/{/g,'\\{').replace(/}/g,'\\}').replace(/\n/g,'\\N'); }
-
 function buildAss(words, cs, ce) {
   const inRange = words.filter(w => w.end > cs && w.start < ce);
   const chunks = [];
@@ -157,7 +180,6 @@ function buildAss(words, cs, ce) {
   }
   return ASS_HEADER + events.join('\n') + '\n';
 }
-
 async function transcribeAudio(apiKey, blob) {
   const fd = new FormData();
   fd.append('file', blob, 'audio.m4a');
@@ -169,7 +191,6 @@ async function transcribeAudio(apiKey, blob) {
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error('Whisper: ' + (e.error?.message || res.statusText)); }
   return res.json();
 }
-
 async function findHighlights(apiKey, segments, count) {
   const transcript = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text}`).join('\n');
   const sys = `You are an expert short-form video editor. Identify the ${count} most engaging segments for Reels/TikTok/Shorts. Each clip 20-60s, natural boundaries, no overlap. Return ONLY JSON: {"clips":[{"start":number,"end":number,"title":string,"hook":string,"caption":string}]}`;
@@ -200,7 +221,8 @@ async function processVideo() {
     setProgress(8, 'Menyiapkan video…', '');
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
     setProgress(15, 'Mengekstrak audio…', 'M4A 32kbps mono');
-    let code = await ffmpeg.exec(['-i','input.mp4','-vn','-ac','1','-ar','16000','-c:a','aac','-b:a','32k','-y','audio.m4a']);
+    // Tambahkan -threads 1 untuk stabilitas
+    let code = await ffmpeg.exec(['-i','input.mp4','-vn','-ac','1','-ar','16000','-c:a','aac','-b:a','32k','-threads','1','-y','audio.m4a']);
     if (code !== 0) throw new Error('Ekstrak audio gagal');
     const audioData = await ffmpeg.readFile('audio.m4a');
     const audioBlob = new Blob([audioData], { type: 'audio/mp4' });
@@ -225,9 +247,10 @@ async function processVideo() {
       const ass = buildAss(t.words || [], c.start, c.end);
       await ffmpeg.writeFile('sub.ass', new TextEncoder().encode(ass));
       const base = '[0:v]split[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=30:5[blurred];[fg]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[front];[blurred][front]overlay=(W-w)/2:(H-h)/2[withbg]';
-      let rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]subtitles=sub.ass[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-y', `clip${i}.mp4`]).catch(() => -1);
+      // Tambahkan -threads 1 pada setiap exec
+      let rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]subtitles=sub.ass[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-threads', '1', '-y', `clip${i}.mp4`]).catch(() => -1);
       if (rc !== 0) {
-        rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]null[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-y', `clip${i}.mp4`]).catch(() => -1);
+        rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]null[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-threads', '1', '-y', `clip${i}.mp4`]).catch(() => -1);
       }
       await ffmpeg.deleteFile('sub.ass').catch(() => {});
       if (rc !== 0) { showError(`Render klip ${i+1} gagal`); continue; }
