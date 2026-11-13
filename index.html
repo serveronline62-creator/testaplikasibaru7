@@ -1,1 +1,490 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎬 Video → Reels</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0a; color: #eaeaea; min-height: 100vh; line-height: 1.5;
+  }
+  header { text-align: center; padding: 48px 20px 24px; border-bottom: 1px solid #1a1a1a; }
+  h1 { font-size: 32px; margin-bottom: 8px; }
+  .subtitle { color: #999; font-size: 16px; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
+  .card {
+    background: #161616; border: 1px solid #262626; border-radius: 12px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  h2 { font-size: 18px; margin-bottom: 16px; color: #d4a574; }
+  input[type="password"], input[type="file"] {
+    width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid #333;
+    border-radius: 8px; color: #eaeaea; font-size: 14px; margin-bottom: 12px;
+  }
+  input[type="number"] {
+    width: 80px; padding: 8px; background: #0a0a0a; border: 1px solid #333;
+    border-radius: 6px; color: #eaeaea; font-size: 14px;
+  }
+  label { display: block; margin-bottom: 12px; color: #ccc; }
+  button {
+    background: #7c3aed; color: white; border: none; padding: 12px 24px;
+    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover:not(:disabled) { background: #6d28d9; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.secondary { background: #333; }
+  button.secondary:hover:not(:disabled) { background: #444; }
+  .hint { color: #888; font-size: 13px; margin-top: 8px; }
+  .progress {
+    height: 8px; background: #262626; border-radius: 4px;
+    overflow: hidden; margin-bottom: 12px;
+  }
+  .progress-bar {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, #7c3aed, #a78bfa);
+    transition: width 0.3s;
+  }
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px; margin-top: 20px;
+  }
+  .clip-card {
+    background: #161616; border: 1px solid #262626;
+    border-radius: 12px; overflow: hidden;
+  }
+  .clip-card video {
+    width: 100%; display: block; background: black;
+    aspect-ratio: 9/16; object-fit: contain;
+  }
+  .clip-info { padding: 16px; }
+  .clip-info h3 { font-size: 16px; margin-bottom: 8px; }
+  .clip-info p { color: #999; font-size: 13px; margin-bottom: 8px; }
+  .clip-caption {
+    background: #0a0a0a; padding: 10px; border-radius: 6px;
+    font-size: 12px; color: #ccc; margin-bottom: 12px; line-height: 1.4;
+  }
+  .clip-card button { width: 100%; font-size: 14px; padding: 10px; }
+  .error-box {
+    background: #7f1d1d; color: #fca5a5; padding: 16px;
+    border-radius: 8px; margin-bottom: 20px; display: none;
+  }
+  .success-box {
+    background: #064e3b; color: #6ee7b7; padding: 16px;
+    border-radius: 8px; margin-bottom: 20px; display: none;
+  }
+  .step-indicator { display: flex; gap: 8px; margin-bottom: 16px; }
+  .step {
+    flex: 1; height: 4px; background: #262626;
+    border-radius: 2px; transition: background 0.3s;
+  }
+  .step.active { background: #7c3aed; }
+  .step.done { background: #10b981; }
+  footer {
+    text-align: center; padding: 32px 20px; color: #555;
+    font-size: 12px; border-top: 1px solid #1a1a1a; margin-top: 40px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 Video → Reels</h1>
+  <p class="subtitle">Ubah video panjang menjadi klip vertikal 9:16 dengan AI · 100% di browser</p>
+</header>
 
+<main>
+  <div id="errorBox" class="error-box"></div>
+  <div id="successBox" class="success-box"></div>
+
+  <section class="card">
+    <h2>1. OpenAI API Key</h2>
+    <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
+    <button id="saveKeyBtn">💾 Simpan</button>
+    <p class="hint">
+      Kunci disimpan hanya di localStorage browser Anda dan hanya dikirim ke OpenAI.
+      Dapatkan di <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#a78bfa">platform.openai.com</a>.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>2. Upload Video</h2>
+    <input type="file" id="videoInput" accept="video/*">
+    <label>Jumlah klip yang diinginkan: <input type="number" id="clipCount" value="3" min="1" max="10"></label>
+    <button id="startBtn" disabled>✨ Generate Reels</button>
+    <p class="hint">
+      ⚠️ Semua proses berjalan di browser Anda. Video 10 menit ≈ 5–10 menit proses.
+      Batas audio Whisper: 25 MB (≈ 1.5 jam dengan kompresi).
+    </p>
+  </section>
+
+  <section id="progressCard" class="card" style="display:none">
+    <h2 id="progressTitle">Memproses…</h2>
+    <div class="step-indicator">
+      <div class="step" id="step1"></div>
+      <div class="step" id="step2"></div>
+      <div class="step" id="step3"></div>
+      <div class="step" id="step4"></div>
+    </div>
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <p class="hint" id="progressDetail">Menyiapkan…</p>
+  </section>
+
+  <section id="results" class="results-grid"></section>
+</main>
+
+<footer>
+  Semua pemrosesan terjadi di browser Anda. Tidak ada server, tidak ada tracking.
+</footer>
+
+<script type="module">
+import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
+import { toBlobURL, fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+
+// ============ State ============
+let ffmpeg = null;
+let currentVideoFile = null;
+
+// ============ DOM helpers ============
+const $ = (id) => document.getElementById(id);
+const apiKeyInput = $('apiKeyInput');
+const saveKeyBtn = $('saveKeyBtn');
+const videoInput = $('videoInput');
+const clipCount = $('clipCount');
+const startBtn = $('startBtn');
+const progressCard = $('progressCard');
+const progressTitle = $('progressTitle');
+const progressBar = $('progressBar');
+const progressDetail = $('progressDetail');
+const results = $('results');
+const errorBox = $('errorBox');
+const successBox = $('successBox');
+
+function showError(msg) {
+  errorBox.textContent = '❌ ' + msg;
+  errorBox.style.display = 'block';
+  setTimeout(() => { errorBox.style.display = 'none'; }, 8000);
+  console.error(msg);
+}
+function showSuccess(msg) {
+  successBox.textContent = '✅ ' + msg;
+  successBox.style.display = 'block';
+  setTimeout(() => { successBox.style.display = 'none'; }, 5000);
+}
+function setStep(n, state) {
+  const el = $('step' + n);
+  if (el) el.className = 'step ' + state;
+}
+function setProgress(pct, title, detail) {
+  progressBar.style.width = pct + '%';
+  if (title) progressTitle.textContent = title;
+  if (detail !== undefined) progressDetail.textContent = detail;
+}
+
+// ============ API key persistence ============
+const savedKey = localStorage.getItem('openai_api_key');
+if (savedKey) {
+  apiKeyInput.value = savedKey;
+  saveKeyBtn.textContent = '✓ Tersimpan';
+}
+saveKeyBtn.addEventListener('click', () => {
+  const key = apiKeyInput.value.trim();
+  if (!key.startsWith('sk-')) { showError('API key harus dimulai dengan sk-'); return; }
+  localStorage.setItem('openai_api_key', key);
+  saveKeyBtn.textContent = '✓ Tersimpan';
+  startBtn.disabled = !(currentVideoFile && key);
+  showSuccess('API key tersimpan');
+});
+
+// ============ File selection ============
+videoInput.addEventListener('change', (e) => {
+  currentVideoFile = e.target.files[0] || null;
+  const hasKey = !!localStorage.getItem('openai_api_key');
+  startBtn.disabled = !(currentVideoFile && hasKey);
+  if (currentVideoFile) {
+    const mb = (currentVideoFile.size / 1024 / 1024).toFixed(1);
+    progressDetail.textContent = `${currentVideoFile.name} (${mb} MB) siap diproses`;
+  }
+});
+
+// ============ FFmpeg loader ============
+async function loadFFmpeg() {
+  if (ffmpeg) return ffmpeg;
+  ffmpeg = new FFmpeg();
+  ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
+  setProgress(2, 'Memuat FFmpeg…', 'Mengunduh ~30 MB WASM (sekali saja)');
+  const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+  return ffmpeg;
+}
+
+// ============ ASS subtitle builder ============
+const ASS_HEADER = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,88,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,2,2,80,80,220,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+function assTime(sec) {
+  if (sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const cs = Math.round((sec - Math.floor(sec)) * 100);
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+}
+function escapeAss(text) {
+  return text.replace(/\\/g, '\\\\').replace(/{/g, '\\{').replace(/}/g, '\\}').replace(/\n/g, '\\N');
+}
+function buildAss(words, clipStart, clipEnd) {
+  const inRange = words.filter(w => w.end > clipStart && w.start < clipEnd);
+  const chunks = [];
+  for (let i = 0; i < inRange.length; i += 4) chunks.push(inRange.slice(i, i + 4));
+  const events = [];
+  for (const chunk of chunks) {
+    const lineEnd = Math.min(chunk[chunk.length - 1].end, clipEnd);
+    for (let i = 0; i < chunk.length; i++) {
+      const start = Math.max(chunk[i].start, clipStart) - clipStart;
+      const end = (i + 1 < chunk.length ? chunk[i + 1].start : lineEnd) - clipStart;
+      if (end <= start) continue;
+      const text = chunk.map((w, j) =>
+        j === i ? `{\\c&H00FFFF&}${escapeAss(w.word)}{\\c&HFFFFFF&}` : escapeAss(w.word)
+      ).join(' ');
+      events.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Default,,0,0,0,,{\\an2\\pos(540,1560)}${text}`);
+    }
+  }
+  return ASS_HEADER + events.join('\n') + '\n';
+}
+
+// ============ OpenAI API ============
+async function transcribeAudio(apiKey, audioBlob) {
+  const fd = new FormData();
+  fd.append('file', audioBlob, 'audio.m4a');
+  fd.append('model', 'whisper-1');
+  fd.append('response_format', 'verbose_json');
+  fd.append('timestamp_granularities[]', 'segment');
+  fd.append('timestamp_granularities[]', 'word');
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+    body: fd,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('Whisper: ' + (err.error?.message || res.statusText));
+  }
+  return res.json();
+}
+
+async function findHighlights(apiKey, segments, count) {
+  const transcript = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text}`).join('\n');
+  const systemPrompt = `You are an expert short-form video editor. Identify the ${count} most engaging, self-contained segments from the transcript for Instagram Reels / TikTok / YouTube Shorts.
+
+Rules:
+- Each clip MUST be 20-60 seconds
+- Start at a natural sentence boundary
+- Clips must not overlap
+- Rank by engagement potential
+- "hook" = 3-second teaser, max 12 words, curiosity-driven
+- "title" = short clip name
+- "caption" = ready-to-post caption with 1-2 emojis and 3-5 hashtags
+
+Return ONLY JSON: {"clips":[{"start":number,"end":number,"title":string,"hook":string,"caption":string}]}`;
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: transcript },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error('GPT: ' + (err.error?.message || res.statusText));
+  }
+  const data = await res.json();
+  return JSON.parse(data.choices[0].message.content).clips || [];
+}
+
+// ============ Main pipeline ============
+async function processVideo() {
+  const apiKey = localStorage.getItem('openai_api_key');
+  if (!apiKey) { showError('Simpan API key dulu'); return; }
+  if (!currentVideoFile) { showError('Pilih video dulu'); return; }
+
+  const file = currentVideoFile;
+  const count = Math.max(1, Math.min(10, parseInt(clipCount.value) || 3));
+
+  if (file.size > 500 * 1024 * 1024) {
+    showError('File >500 MB terlalu besar untuk browser. Kompres dulu.');
+    return;
+  }
+  if (file.size > 200 * 1024 * 1024 && !confirm('Video >200 MB mungkin lambat. Lanjutkan?')) return;
+
+  results.innerHTML = '';
+  progressCard.style.display = 'block';
+  startBtn.disabled = true;
+  startBtn.textContent = '⏳ Memproses…';
+
+  try {
+    // 1) Load FFmpeg
+    setStep(1, 'active');
+    await loadFFmpeg();
+    setStep(1, 'done');
+
+    // 2) Write input & extract audio
+    setStep(2, 'active');
+    setProgress(8, 'Menyiapkan video…', 'Menyalin ke memori');
+    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
+
+    setProgress(15, 'Mengekstrak audio…', 'Konversi ke M4A 32 kbps mono');
+    let code = await ffmpeg.exec([
+      '-i', 'input.mp4',
+      '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'aac', '-b:a', '32k',
+      '-y', 'audio.m4a'
+    ]);
+    if (code !== 0) throw new Error('Ekstrak audio gagal');
+
+    const audioData = await ffmpeg.readFile('audio.m4a');
+    const audioBlob = new Blob([audioData], { type: 'audio/mp4' });
+    await ffmpeg.deleteFile('audio.m4a');
+
+    const sizeMB = audioBlob.size / 1024 / 1024;
+    if (sizeMB > 24) {
+      throw new Error(`Audio ${sizeMB.toFixed(1)} MB terlalu besar untuk Whisper (max 25 MB).`);
+    }
+
+    // 3) Transcribe & analyze
+    setStep(2, 'done');
+    setStep(3, 'active');
+    setProgress(25, 'Transkripsi audio…', `Whisper menerima ${sizeMB.toFixed(1)} MB`);
+    const transcription = await transcribeAudio(apiKey, audioBlob);
+    if (!transcription.segments?.length) throw new Error('Tidak ada suara terdeteksi');
+
+    setProgress(45, 'Menganalisis momen terbaik…', `${transcription.segments.length} segmen ke GPT`);
+    const clips = await findHighlights(apiKey, transcription.segments, count);
+    if (!clips.length) throw new Error('Tidak ada highlight ditemukan');
+
+    // 4) Render each clip
+    setStep(3, 'done');
+    setStep(4, 'active');
+
+    for (let i = 0; i < clips.length; i++) {
+      const clip = clips[i];
+      const pct = 50 + Math.round(((i + 1) / clips.length) * 50);
+      setProgress(pct - 8, `Merender klip ${i+1}/${clips.length}…`, `"${clip.title}"`);
+
+      const duration = clip.end - clip.start;
+      const assContent = buildAss(transcription.words || [], clip.start, clip.end);
+      await ffmpeg.writeFile('sub.ass', new TextEncoder().encode(assContent));
+
+      const baseFilters =
+        '[0:v]split[bg][fg];' +
+        '[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=30:5[blurred];' +
+        '[fg]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[front];' +
+        '[blurred][front]overlay=(W-w)/2:(H-h)/2[withbg]';
+
+      // Try with captions first
+      let renderCode = await ffmpeg.exec([
+        '-ss', String(clip.start), '-i', 'input.mp4', '-t', String(duration),
+        '-filter_complex', baseFilters + ';[withbg]subtitles=sub.ass[vout]',
+        '-map', '[vout]', '-map', '0:a?',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+        '-c:a', 'aac', '-b:a', '96k',
+        '-y', `clip${i}.mp4`
+      ]).catch(() => -1);
+
+      // Fallback without captions
+      if (renderCode !== 0) {
+        console.warn('Subtitles failed, retry without captions');
+        renderCode = await ffmpeg.exec([
+          '-ss', String(clip.start), '-i', 'input.mp4', '-t', String(duration),
+          '-filter_complex', baseFilters + ';[withbg]null[vout]',
+          '-map', '[vout]', '-map', '0:a?',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+          '-c:a', 'aac', '-b:a', '96k',
+          '-y', `clip${i}.mp4`
+        ]).catch(() => -1);
+      }
+
+      await ffmpeg.deleteFile('sub.ass').catch(() => {});
+
+      if (renderCode !== 0) { showError(`Render klip ${i+1} gagal`); continue; }
+
+      const outData = await ffmpeg.readFile(`clip${i}.mp4`);
+      const blob = new Blob([outData], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      await ffmpeg.deleteFile(`clip${i}.mp4`).catch(() => {});
+
+      addResultCard(clip, url);
+      setProgress(pct, `Klip ${i+1}/${clips.length} selesai`, '');
+    }
+
+    await ffmpeg.deleteFile('input.mp4').catch(() => {});
+
+    setStep(4, 'done');
+    setProgress(100, '✅ Selesai!', `${clips.length} klip siap diunduh`);
+    showSuccess(`${clips.length} klip berhasil dibuat!`);
+
+  } catch (err) {
+    console.error(err);
+    showError(err.message || 'Terjadi kesalahan');
+    setProgress(0, 'Gagal', err.message || '');
+  } finally {
+    startBtn.disabled = false;
+    startBtn.textContent = '✨ Generate Reels';
+  }
+}
+
+function addResultCard(clip, url) {
+  const safeTitle = escapeHtml(clip.title || 'Clip');
+  const card = document.createElement('div');
+  card.className = 'clip-card';
+  card.innerHTML = `
+    <video src="${url}" controls playsinline></video>
+    <div class="clip-info">
+      <h3>${safeTitle}</h3>
+      <p>🎣 ${escapeHtml(clip.hook || '')}</p>
+      <p><strong>${clip.start.toFixed(1)}s – ${clip.end.toFixed(1)}s</strong> (${Math.round(clip.end - clip.start)}s)</p>
+      <div class="clip-caption">${escapeHtml(clip.caption || '')}</div>
+      <button class="secondary">⬇ Download MP4</button>
+    </div>
+  `;
+  card.querySelector('button').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (clip.title || 'clip').replace(/[^a-zA-Z0-9]+/g, '_') + '.mp4';
+    a.click();
+  });
+  results.appendChild(card);
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+startBtn.addEventListener('click', processVideo);
+</script>
+</body>
+</html>
