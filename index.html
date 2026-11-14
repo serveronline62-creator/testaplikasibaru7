@@ -1,304 +1,405 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🎬 Video → Reels</title>
-<style>
-  /* ... (CSS sama seperti sebelumnya, tidak diubah) ... */
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #eaeaea; min-height: 100vh; line-height: 1.5; }
-  header { text-align: center; padding: 48px 20px 24px; border-bottom: 1px solid #1a1a1a; }
-  h1 { font-size: 32px; margin-bottom: 8px; }
-  .subtitle { color: #999; font-size: 16px; }
-  main { max-width: 900px; margin: 0 auto; padding: 24px 20px; }
-  .card { background: #161616; border: 1px solid #262626; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-  h2 { font-size: 18px; margin-bottom: 16px; color: #d4a574; }
-  input[type="file"], input[type="number"] { width: 100%; padding: 12px; background: #0a0a0a; border: 1px solid #333; border-radius: 8px; color: #eaeaea; font-size: 14px; margin-bottom: 12px; }
-  input[type="number"] { width: 80px; }
-  label { display: block; margin-bottom: 12px; color: #ccc; }
-  button { background: #7c3aed; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-  button:hover:not(:disabled) { background: #6d28d9; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
-  button.secondary { background: #333; }
-  .hint { color: #888; font-size: 13px; margin-top: 8px; }
-  .progress { height: 8px; background: #262626; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
-  .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #7c3aed, #a78bfa); transition: width 0.3s; }
-  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
-  .clip-card { background: #161616; border: 1px solid #262626; border-radius: 12px; overflow: hidden; }
-  .clip-card video { width: 100%; display: block; background: black; aspect-ratio: 9/16; object-fit: contain; }
-  .clip-info { padding: 16px; }
-  .clip-info h3 { font-size: 16px; margin-bottom: 8px; }
-  .clip-info p { color: #999; font-size: 13px; margin-bottom: 8px; }
-  .clip-caption { background: #0a0a0a; padding: 10px; border-radius: 6px; font-size: 12px; color: #ccc; margin-bottom: 12px; }
-  .clip-card button { width: 100%; font-size: 14px; padding: 10px; }
-  .error-box { background: #7f1d1d; color: #fca5a5; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: none; }
-  .success-box { background: #064e3b; color: #6ee7b7; padding: 16px; border-radius: 8px; margin-bottom: 20px; display: none; }
-  .step-indicator { display: flex; gap: 8px; margin-bottom: 16px; }
-  .step { flex: 1; height: 4px; background: #262626; border-radius: 2px; transition: background 0.3s; }
-  .step.active { background: #7c3aed; }
-  .step.done { background: #10b981; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teka-Teki Korek Api (Drag & Drop)</title>
+    <!-- Memanggil library interact.js untuk fitur drag & drop -->
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <style>
+        body {
+            background-color: #2c3e50;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: white;
+            overflow: hidden;
+            user-select: none; /* Mencegah teks terblok saat di-drag */
+        }
+
+        h1 { margin-bottom: 10px; text-align: center; }
+        p.instruksi { color: #bdc3c7; margin-bottom: 30px; text-align: center; }
+
+        #game-board {
+            background-color: #7f8c8d;
+            border-radius: 10px;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            position: relative;
+            /* Tekstur meja kayu */
+            background-image: repeating-linear-gradient(45deg, #7f8c8d 25%, transparent 25%, transparent 75%, #7f8c8d 75%, #7f8c8d), repeating-linear-gradient(45deg, #7f8c8d 25%, #7f8c8d 25%, #7f8c8d 75%, #7f8c8d 75%, #7f8c8d);
+            background-size: 20px 20px;
+        }
+
+        .digit-container, .operator {
+            position: relative;
+            width: 70px;
+            height: 120px;
+        }
+
+        /* Slot tempat korek api bisa diletakkan */
+        .slot {
+            position: absolute;
+            width: 60px;
+            height: 10px;
+            background-color: rgba(0, 0, 0, 0.1); /* Sedikit terlihat agar tahu letaknya */
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .slot.vertical {
+            width: 10px;
+            height: 60px;
+        }
+
+        /* Efek saat korek diarahkan ke slot */
+        .slot.drop-target {
+            background-color: rgba(46, 204, 113, 0.4);
+            box-shadow: 0 0 10px #2ecc71;
+        }
+
+        /* Desain Batang Korek Api */
+        .matchstick {
+            position: absolute;
+            background-color: #f1c40f;
+            border-radius: 4px;
+            cursor: grab;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.4);
+            border: 1px solid #d35400;
+            z-index: 10;
+            /* Transisi untuk efek snap */
+            transition: left 0.2s ease-out, top 0.2s ease-out; 
+            touch-action: none; /* Penting untuk mobile drag */
+        }
+        
+        .matchstick:active {
+            cursor: grabbing;
+        }
+
+        .matchstick::after {
+            content: '';
+            position: absolute;
+            background-color: #e74c3c;
+            border-radius: 50%;
+        }
+
+        .matchstick.horizontal {
+            width: 60px;
+            height: 10px;
+        }
+        .matchstick.horizontal::after {
+            width: 12px; height: 12px; right: -6px; top: -2px;
+        }
+
+        .matchstick.vertical {
+            width: 10px;
+            height: 60px;
+        }
+        .matchstick.vertical::after {
+            width: 12px; height: 12px; bottom: -6px; left: -2px;
+        }
+
+        /* Saat korek sedang di-drag */
+        .matchstick.dragging {
+            cursor: grabbing;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.6);
+            transition: none; /* Matikan transisi saat di-drag agar tidak lag */
+            z-index: 100;
+        }
+
+        /* Posisi Slot pada Angka (7-Segment) */
+        .pos-a { top: 0; left: 5px; }
+        .pos-g { top: 55px; left: 5px; }
+        .pos-d { bottom: 0; left: 5px; }
+        .pos-f { top: 5px; left: 0; }
+        .pos-b { top: 5px; right: 0; }
+        .pos-e { bottom: 5px; left: 0; }
+        .pos-c { bottom: 5px; right: 0; }
+
+        /* Posisi untuk Operator */
+        .op-pos-horizontal { top: 55px; left: 5px; }
+        .op-pos-vertical { top: 5px; left: 30px; }
+        .eq-pos-top { top: 35px; left: 5px; }
+        .eq-pos-bottom { bottom: 35px; left: 5px; }
+
+        #message {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2ecc71;
+            text-shadow: 2px 2px 4px #000;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        #reset-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #reset-btn:hover { background-color: #c0392b; }
+    </style>
 </head>
 <body>
-<header>
-  <h1>🎬 Video → Reels</h1>
-  <p class="subtitle">Ubah video panjang menjadi klip vertikal 9:16 dengan AI · 100% di browser</p>
-</header>
 
-<main>
-  <div id="errorBox" class="error-box"></div>
-  <div id="successBox" class="success-box"></div>
+    <h1>Teka-Teki Korek Api</h1>
+    <p class="instruksi">Geser <b>1 batang korek api</b> agar persamaan menjadi benar!</p>
 
-  <section class="card">
-    <h2>Upload Video</h2>
-    <input type="file" id="videoInput" accept="video/*">
-    <label>Jumlah klip: <input type="number" id="clipCount" value="3" min="1" max="10"></label>
-    <button id="startBtn" disabled>✨ Generate Reels</button>
-    <p class="hint">Semua proses berjalan di browser. Video 10 menit ≈ 5–10 menit proses.</p>
-  </section>
+    <div id="game-board">
+        <!-- Angka 1 (Awalnya 5) -->
+        <div class="digit-container" id="digit-1">
+            <div class="slot horizontal pos-a" data-id="d1-a"></div>
+            <div class="slot vertical pos-f" data-id="d1-f"></div>
+            <div class="slot horizontal pos-g" data-id="d1-g"></div>
+            <div class="slot vertical pos-c" data-id="d1-c"></div>
+            <div class="slot horizontal pos-d" data-id="d1-d"></div>
+            <!-- Korek awal -->
+            <div class="matchstick horizontal" data-slot="d1-a" style="top: 0; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="d1-f" style="top: 5px; left: 0;"></div>
+            <div class="matchstick horizontal" data-slot="d1-g" style="top: 55px; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="d1-c" style="bottom: 5px; right: 0;"></div>
+            <div class="matchstick horizontal" data-slot="d1-d" style="bottom: 0; left: 5px;"></div>
+        </div>
 
-  <section id="progressCard" class="card" style="display:none">
-    <h2 id="progressTitle">Memproses…</h2>
-    <div class="step-indicator">
-      <div class="step" id="step1"></div>
-      <div class="step" id="step2"></div>
-      <div class="step" id="step3"></div>
-      <div class="step" id="step4"></div>
+        <!-- Operator 1 (Awalnya +) -->
+        <div class="operator" id="op-1">
+            <div class="slot horizontal op-pos-horizontal" data-id="op1-h"></div>
+            <div class="slot vertical op-pos-vertical" data-id="op1-v"></div>
+            <!-- Korek awal -->
+            <div class="matchstick horizontal" data-slot="op1-h" style="top: 55px; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="op1-v" style="top: 5px; left: 30px;"></div>
+        </div>
+
+        <!-- Angka 2 (7) -->
+        <div class="digit-container" id="digit-2">
+            <div class="slot horizontal pos-a" data-id="d2-a"></div>
+            <div class="slot vertical pos-b" data-id="d2-b"></div>
+            <div class="slot vertical pos-c" data-id="d2-c"></div>
+            <!-- Korek awal -->
+            <div class="matchstick horizontal" data-slot="d2-a" style="top: 0; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="d2-b" style="top: 5px; right: 0;"></div>
+            <div class="matchstick vertical" data-slot="d2-c" style="bottom: 5px; right: 0;"></div>
+        </div>
+
+        <!-- Operator 2 (=) -->
+        <div class="operator" id="op-2">
+            <div class="slot horizontal eq-pos-top" data-id="op2-top"></div>
+            <div class="slot horizontal eq-pos-bottom" data-id="op2-bot"></div>
+            <!-- Korek awal (Tanda Sama Dengan) -->
+            <div class="matchstick horizontal" data-slot="op2-top" style="top: 35px; left: 5px;"></div>
+            <div class="matchstick horizontal" data-slot="op2-bot" style="bottom: 35px; left: 5px;"></div>
+        </div>
+
+        <!-- Angka 3 (2) -->
+        <div class="digit-container" id="digit-3">
+            <div class="slot horizontal pos-a" data-id="d3-a"></div>
+            <div class="slot vertical pos-b" data-id="d3-b"></div>
+            <div class="slot horizontal pos-g" data-id="d3-g"></div>
+            <div class="slot vertical pos-e" data-id="d3-e"></div>
+            <div class="slot horizontal pos-d" data-id="d3-d"></div>
+            <!-- Korek awal -->
+            <div class="matchstick horizontal" data-slot="d3-a" style="top: 0; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="d3-b" style="top: 5px; right: 0;"></div>
+            <div class="matchstick horizontal" data-slot="d3-g" style="top: 55px; left: 5px;"></div>
+            <div class="matchstick vertical" data-slot="d3-e" style="bottom: 5px; left: 0;"></div>
+            <div class="matchstick horizontal" data-slot="d3-d" style="bottom: 0; left: 5px;"></div>
+        </div>
     </div>
-    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
-    <p class="hint" id="progressDetail">Menyiapkan…</p>
-  </section>
 
-  <section id="results" class="results-grid"></section>
-</main>
+    <div id="message">🎉 Hebat! Persamaan Benar! 🎉</div>
+    <button id="reset-btn" onclick="location.reload()">Ulangi Permainan</button>
 
-<script type="module">
-import { FFmpeg } from 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js';
-import { toBlobURL, fetchFile } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
+    <script>
+        // Inisialisasi interaktif Drag & Drop
+        interact('.matchstick').draggable({
+            inertia: true,
+            modifiers: [
+                interact.modifiers.restrictRect({
+                    restriction: '#game-board',
+                    endOnly: true
+                })
+            ],
+            autoScroll: true,
+            listeners: {
+                start (event) {
+                    const target = event.target;
+                    target.classList.add('dragging');
+                    // Simpan posisi awal untuk reset jika salah taruh
+                    target.dataset.originalLeft = target.style.left;
+                    target.dataset.originalTop = target.style.top;
+                    target.dataset.originalSlot = target.dataset.slot;
+                    
+                    // Lepas korek dari slot lamanya secara visual
+                    target.dataset.slot = "";
+                },
+                move (event) {
+                    const target = event.target;
+                    const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+                    const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
 
-// 🔑 ===== TANAM API KEY DI SINI =====
-const OPENAI_API_KEY = 'sk-GANTI-DENGAN-KEY-ANDA-DISINI';
-// ====================================
+                    target.style.transform = `translate(${x}px, ${y}px)`;
+                    target.setAttribute('data-x', x);
+                    target.setAttribute('data-y', y);
+                },
+                end (event) {
+                    const target = event.target;
+                    target.classList.remove('dragging');
+                    
+                    // Cari slot terdekat tempat korek dijatuhkan
+                    const closestSlot = findClosestSlot(target);
+                    
+                    if (closestSlot && !isSlotOccupied(closestSlot)) {
+                        // Jika slot kosong, tempelkan korek ke slot
+                        attachToSlot(target, closestSlot);
+                    } else {
+                        // Jika tidak ada slot atau slot sudah terisi, kembalikan ke posisi semula
+                        target.style.transform = 'none';
+                        target.setAttribute('data-x', 0);
+                        target.setAttribute('data-y', 0);
+                        target.dataset.slot = target.dataset.originalSlot;
+                        
+                        // Kembalikan ke posisi visual semula
+                        const originalSlotElement = document.querySelector(`[data-id="${target.dataset.originalSlot}"]`);
+                        if(originalSlotElement) {
+                            target.style.left = originalSlotElement.style.left;
+                            target.style.top = originalSlotElement.style.top;
+                        }
+                    }
+                    
+                    checkWin();
+                }
+            }
+        });
 
-let ffmpeg = null;
-let currentVideoFile = null;
+        // Fungsi mencari slot terdekat dari posisi korek
+        function findClosestSlot(matchstick) {
+            const matchRect = matchstick.getBoundingClientRect();
+            const slots = document.querySelectorAll('.slot');
+            let closestSlot = null;
+            let minDistance = 60; // Jarak toleransi (pixel) agar korek bisa snap
 
-const $ = (id) => document.getElementById(id);
-// ... (deklarasi DOM lainnya) ...
-const videoInput = $('videoInput');
-const clipCount = $('clipCount');
-const startBtn = $('startBtn');
-const progressCard = $('progressCard');
-const progressTitle = $('progressTitle');
-const progressBar = $('progressBar');
-const progressDetail = $('progressDetail');
-const results = $('results');
-const errorBox = $('errorBox');
-const successBox = $('successBox');
+            slots.forEach(slot => {
+                const slotRect = slot.getBoundingClientRect();
+                const distance = Math.hypot(
+                    (matchRect.left + matchRect.width / 2) - (slotRect.left + slotRect.width / 2),
+                    (matchRect.top + matchRect.height / 2) - (slotRect.top + slotRect.height / 2)
+                );
 
-function showError(msg) { errorBox.textContent = '❌ ' + msg; errorBox.style.display = 'block'; setTimeout(() => { errorBox.style.display = 'none'; }, 8000); console.error(msg); }
-function showSuccess(msg) { successBox.textContent = '✅ ' + msg; successBox.style.display = 'block'; setTimeout(() => { successBox.style.display = 'none'; }, 5000); }
-function setStep(n, s) { const el = $('step' + n); if (el) el.className = 'step ' + s; }
-function setProgress(p, t, d) { progressBar.style.width = p + '%'; if (t) progressTitle.textContent = t; if (d !== undefined) progressDetail.textContent = d; }
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestSlot = slot;
+                }
+            });
+            return closestSlot;
+        }
 
-videoInput.addEventListener('change', (e) => {
-  currentVideoFile = e.target.files[0] || null;
-  startBtn.disabled = !(currentVideoFile && OPENAI_API_KEY.startsWith('sk-'));
-  if (currentVideoFile) {
-    const mb = (currentVideoFile.size / 1024 / 1024).toFixed(1);
-    progressDetail.textContent = `${currentVideoFile.name} (${mb} MB) siap diproses`;
-  }
-});
+        // Cek apakah slot sudah ada koreknya
+        function isSlotOccupied(slot) {
+            const slotId = slot.dataset.id;
+            const matched = document.querySelector(`.matchstick[data-slot="${slotId}"]`);
+            return matched !== null;
+        }
 
-// ============ PERBAIKAN FINAL: classWorkerURL DENGAN ORIGIN ABSOLUT ============
-async function loadFFmpeg() {
-  if (ffmpeg && ffmpeg.isLoaded()) return ffmpeg;
+        // Tempelkan korek ke slot
+        function attachToSlot(matchstick, slot) {
+            const slotRect = slot.getBoundingClientRect();
+            const boardRect = document.getElementById('game-board').getBoundingClientRect();
 
-  ffmpeg = new FFmpeg();
-  ffmpeg.on('log', ({ message }) => console.log('[ffmpeg]', message));
-  ffmpeg.on('error', (err) => console.error('[ffmpeg-error]', err));
+            // Hitung posisi absolut relatif terhadap board
+            const left = slotRect.left - boardRect.left;
+            const top = slotRect.top - boardRect.top;
 
-  setProgress(2, 'Memuat FFmpeg…', 'Menyiapkan mesin dari file lokal');
+            // Reset transform, set posisi baru
+            matchstick.style.transform = 'none';
+            matchstick.setAttribute('data-x', 0);
+            matchstick.setAttribute('data-y', 0);
+            matchstick.style.left = `${left}px`;
+            matchstick.style.top = `${top}px`;
+            
+            // Simpan ID slot
+            matchstick.dataset.slot = slot.dataset.id;
+        }
 
-  const basePath = '/ffmpeg'; // Path absolut dari root situs
-  const origin = window.location.origin;
+        // --- LOGIKA PENGECEKAN MATEMATIKA ---
 
-  try {
-    const coreURL = await toBlobURL(`${origin}${basePath}/ffmpeg-core.js`, 'text/javascript');
-    const wasmURL = await toBlobURL(`${origin}${basePath}/ffmpeg-core.wasm`, 'application/wasm');
-    
-    // KUNCI PERBAIKAN: Gunakan location.origin + path absolut
-    const classWorkerURL = `${origin}${basePath}/worker.js`;
+        function getSegments(digitId) {
+            const sticks = document.querySelectorAll(`#${digitId} .matchstick`);
+            let segments = [];
+            sticks.forEach(stick => {
+                const slotId = stick.dataset.slot;
+                if (slotId && slotId.includes('-')) {
+                    segments.push(slotId.split('-')[1]); // Mengambil huruf (a, b, c...)
+                }
+            });
+            return segments.sort().join(','); // urutkan agar konsisten
+        }
 
-    await ffmpeg.load({
-      coreURL: coreURL,
-      wasmURL: wasmURL,
-      classWorkerURL: classWorkerURL,
-    });
-    console.log('[ffmpeg] Loaded successfully');
-  } catch (err) {
-    console.error('Gagal memuat FFmpeg:', err);
-    throw new Error('Gagal memuat mesin FFmpeg. Periksa folder "ffmpeg" dan file di dalamnya.');
-  }
+        function getNumberFromSegments(segments) {
+            // Pemetaan segmen ke angka (berdasarkan susunan 7-segment)
+            const mapping = {
+                'a,b,c,d,e,f': 0,
+                'b,c': 1,
+                'a,b,d,e,g': 2,
+                'a,b,c,d,g': 3,
+                'b,c,f,g': 4,
+                'a,c,d,f,g': 5,
+                'a,c,d,e,f,g': 6,
+                'a,b,c': 7,
+                'a,b,c,d,e,f,g': 8,
+                'a,b,c,d,f,g': 9
+            };
+            return mapping[segments] !== undefined ? mapping[segments] : null;
+        }
 
-  return ffmpeg;
-}
-// =========================================================================
+        function getOperator(opId) {
+            const sticks = document.querySelectorAll(`#${opId} .matchstick`);
+            let hasH = false, hasV = false;
+            sticks.forEach(stick => {
+                if(stick.dataset.slot === `${opId}-h` || stick.dataset.slot === `${opId}-top` || stick.dataset.slot === `${opId}-bot`) hasH = true;
+                if(stick.dataset.slot === `${opId}-v`) hasV = true;
+            });
+            if (hasH && hasV) return '+';
+            if (hasH && !hasV) return '-';
+            return null;
+        }
 
-// ... (Fungsi buildAss, transcribeAudio, findHighlights SAMA seperti sebelumnya) ...
-const ASS_HEADER = `[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 2
-ScaledBorderAndShadow: yes
+        function checkWin() {
+            const num1 = getNumberFromSegments(getSegments('digit-1'));
+            const num2 = getNumberFromSegments(getSegments('digit-2'));
+            const num3 = getNumberFromSegments(getSegments('digit-3'));
+            const op1 = getOperator('op-1');
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,88,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,2,2,80,80,220,1
+            // Pastikan semua angka valid
+            if (num1 !== null && num2 !== null && num3 !== null && op1 !== null) {
+                let result;
+                if (op1 === '+') result = num1 + num2;
+                if (op1 === '-') result = num1 - num2;
 
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-`;
-function assTime(s) { if (s < 0) s = 0; const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); const sec = Math.floor(s%60); const cs = Math.round((s-Math.floor(s))*100); return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}.${String(cs).padStart(2,'0')}`; }
-function escapeAss(t) { return t.replace(/\\/g,'\\\\').replace(/{/g,'\\{').replace(/}/g,'\\}').replace(/\n/g,'\\N'); }
-function buildAss(words, cs, ce) {
-  const inRange = words.filter(w => w.end > cs && w.start < ce);
-  const chunks = [];
-  for (let i = 0; i < inRange.length; i += 4) chunks.push(inRange.slice(i, i + 4));
-  const events = [];
-  for (const chunk of chunks) {
-    const lineEnd = Math.min(chunk[chunk.length-1].end, ce);
-    for (let i = 0; i < chunk.length; i++) {
-      const start = Math.max(chunk[i].start, cs) - cs;
-      const end = (i+1 < chunk.length ? chunk[i+1].start : lineEnd) - cs;
-      if (end <= start) continue;
-      const text = chunk.map((w,j) => j === i ? `{\\c&H00FFFF&}${escapeAss(w.word)}{\\c&HFFFFFF&}` : escapeAss(w.word)).join(' ');
-      events.push(`Dialogue: 0,${assTime(start)},${assTime(end)},Default,,0,0,0,,{\\an2\\pos(540,1560)}${text}`);
-    }
-  }
-  return ASS_HEADER + events.join('\n') + '\n';
-}
-async function transcribeAudio(apiKey, blob) {
-  const fd = new FormData();
-  fd.append('file', blob, 'audio.m4a');
-  fd.append('model', 'whisper-1');
-  fd.append('response_format', 'verbose_json');
-  fd.append('timestamp_granularities[]', 'segment');
-  fd.append('timestamp_granularities[]', 'word');
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', { method: 'POST', headers: { 'Authorization': `Bearer ${apiKey}` }, body: fd });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error('Whisper: ' + (e.error?.message || res.statusText)); }
-  return res.json();
-}
-async function findHighlights(apiKey, segments, count) {
-  const transcript = segments.map(s => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${s.text}`).join('\n');
-  const sys = `You are an expert short-form video editor. Identify the ${count} most engaging segments for Reels/TikTok/Shorts. Each clip 20-60s, natural boundaries, no overlap. Return ONLY JSON: {"clips":[{"start":number,"end":number,"title":string,"hook":string,"caption":string}]}`;
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gpt-4o-mini', temperature: 0.7, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: sys }, { role: 'user', content: transcript }] }),
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error('GPT: ' + (e.error?.message || res.statusText)); }
-  const d = await res.json();
-  return JSON.parse(d.choices[0].message.content).clips || [];
-}
-
-async function processVideo() {
-  const apiKey = OPENAI_API_KEY;
-  if (!apiKey.startsWith('sk-')) { showError('API key belum diisi di file.'); return; }
-  if (!currentVideoFile) { showError('Pilih video dulu'); return; }
-  const file = currentVideoFile;
-  const count = Math.max(1, Math.min(10, parseInt(clipCount.value) || 3));
-  if (file.size > 500 * 1024 * 1024) { showError('File >500 MB terlalu besar'); return; }
-  results.innerHTML = '';
-  progressCard.style.display = 'block';
-  startBtn.disabled = true;
-  startBtn.textContent = '⏳ Memproses…';
-  try {
-    setStep(1, 'active'); await loadFFmpeg(); setStep(1, 'done');
-    setStep(2, 'active');
-    setProgress(8, 'Menyiapkan video…', '');
-    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-    setProgress(15, 'Mengekstrak audio…', 'M4A 32kbps mono');
-    // Tambahkan -threads 1 untuk stabilitas
-    let code = await ffmpeg.exec(['-i','input.mp4','-vn','-ac','1','-ar','16000','-c:a','aac','-b:a','32k','-threads','1','-y','audio.m4a']);
-    if (code !== 0) throw new Error('Ekstrak audio gagal');
-    const audioData = await ffmpeg.readFile('audio.m4a');
-    const audioBlob = new Blob([audioData], { type: 'audio/mp4' });
-    await ffmpeg.deleteFile('audio.m4a');
-    const sizeMB = audioBlob.size / 1024 / 1024;
-    if (sizeMB > 24) throw new Error(`Audio ${sizeMB.toFixed(1)} MB > 25 MB (limit Whisper)`);
-
-    setStep(2, 'done'); setStep(3, 'active');
-    setProgress(25, 'Transkripsi…', `Whisper: ${sizeMB.toFixed(1)} MB`);
-    const t = await transcribeAudio(apiKey, audioBlob);
-    if (!t.segments?.length) throw new Error('Tidak ada suara terdeteksi');
-    setProgress(45, 'Analisis momen…', `${t.segments.length} segmen ke GPT`);
-    const clips = await findHighlights(apiKey, t.segments, count);
-    if (!clips.length) throw new Error('Tidak ada highlight');
-
-    setStep(3, 'done'); setStep(4, 'active');
-    for (let i = 0; i < clips.length; i++) {
-      const c = clips[i];
-      const pct = 50 + Math.round(((i+1)/clips.length) * 50);
-      setProgress(pct - 8, `Render ${i+1}/${clips.length}…`, c.title);
-      const dur = c.end - c.start;
-      const ass = buildAss(t.words || [], c.start, c.end);
-      await ffmpeg.writeFile('sub.ass', new TextEncoder().encode(ass));
-      const base = '[0:v]split[bg][fg];[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=30:5[blurred];[fg]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[front];[blurred][front]overlay=(W-w)/2:(H-h)/2[withbg]';
-      // Tambahkan -threads 1 pada setiap exec
-      let rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]subtitles=sub.ass[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-threads', '1', '-y', `clip${i}.mp4`]).catch(() => -1);
-      if (rc !== 0) {
-        rc = await ffmpeg.exec(['-ss', String(c.start), '-i', 'input.mp4', '-t', String(dur), '-filter_complex', base + ';[withbg]null[vout]', '-map', '[vout]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28', '-c:a', 'aac', '-b:a', '96k', '-threads', '1', '-y', `clip${i}.mp4`]).catch(() => -1);
-      }
-      await ffmpeg.deleteFile('sub.ass').catch(() => {});
-      if (rc !== 0) { showError(`Render klip ${i+1} gagal`); continue; }
-      const out = await ffmpeg.readFile(`clip${i}.mp4`);
-      const blob = new Blob([out], { type: 'video/mp4' });
-      const url = URL.createObjectURL(blob);
-      await ffmpeg.deleteFile(`clip${i}.mp4`).catch(() => {});
-      addResultCard(c, url);
-      setProgress(pct, `Klip ${i+1}/${clips.length} selesai`, '');
-    }
-    await ffmpeg.deleteFile('input.mp4').catch(() => {});
-    setStep(4, 'done');
-    setProgress(100, '✅ Selesai!', `${clips.length} klip siap`);
-    showSuccess(`${clips.length} klip berhasil dibuat!`);
-  } catch (err) {
-    console.error(err);
-    showError(err.message || 'Terjadi kesalahan');
-    setProgress(0, 'Gagal', err.message || '');
-  } finally {
-    startBtn.disabled = false;
-    startBtn.textContent = '✨ Generate Reels';
-  }
-}
-
-function addResultCard(clip, url) {
-  const card = document.createElement('div');
-  card.className = 'clip-card';
-  card.innerHTML = `
-    <video src="${url}" controls playsinline></video>
-    <div class="clip-info">
-      <h3>${escapeHtml(clip.title || 'Clip')}</h3>
-      <p>🎣 ${escapeHtml(clip.hook || '')}</p>
-      <p><strong>${clip.start.toFixed(1)}s – ${clip.end.toFixed(1)}s</strong> (${Math.round(clip.end - clip.start)}s)</p>
-      <div class="clip-caption">${escapeHtml(clip.caption || '')}</div>
-      <button class="secondary">⬇ Download MP4</button>
-    </div>`;
-  card.querySelector('button').addEventListener('click', () => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (clip.title || 'clip').replace(/[^a-zA-Z0-9]+/g, '_') + '.mp4';
-    a.click();
-  });
-  results.appendChild(card);
-}
-
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-
-startBtn.addEventListener('click', processVideo);
-</script>
+                if (result === num3) {
+                    document.getElementById('message').style.opacity = 1;
+                    // Nonaktifkan interaksi jika sudah menang
+                    document.querySelectorAll('.matchstick').forEach(el => {
+                        interact(el).draggable(false);
+                    });
+                } else {
+                    document.getElementById('message').style.opacity = 0;
+                }
+            }
+        }
+    </script>
 </body>
 </html>
